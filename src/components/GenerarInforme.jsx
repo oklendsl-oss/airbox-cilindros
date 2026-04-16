@@ -55,24 +55,77 @@ export default function GenerarInforme({ onCerrar }) {
     )
   }
 
-  // Carga la imagen, respeta el EXIF de orientación usando canvas
-  const fetchImageCorregida = (url) => {
-    return new Promise((resolve) => {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        canvas.width = img.naturalWidth
-        canvas.height = img.naturalHeight
-        const ctx = canvas.getContext('2d')
-        ctx.drawImage(img, 0, 0)
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
-        const base64 = dataUrl.split(',')[1]
-        resolve({ base64, mimeType: 'image/jpeg' })
-      }
-      img.onerror = () => resolve(null)
-      img.src = url
-    })
+  // Lee orientación EXIF de los bytes raw
+  const getExifOrientation = (buffer) => {
+    const view = new DataView(buffer)
+    if (view.getUint16(0, false) !== 0xFFD8) return 1
+    let offset = 2
+    while (offset < buffer.byteLength) {
+      const marker = view.getUint16(offset, false)
+      offset += 2
+      if (marker === 0xFFE1) {
+        if (view.getUint32(offset + 2, false) !== 0x45786966) return 1
+        const little = view.getUint16(offset + 8, false) === 0x4949
+        const tags = view.getUint16(offset + 10 + 4 + 2, little)
+        const tiffOffset = offset + 10
+        for (let i = 0; i < tags; i++) {
+          const tag = view.getUint16(tiffOffset + 2 + i * 12, little)
+          if (tag === 0x0112) return view.getUint16(tiffOffset + 2 + i * 12 + 8, little)
+        }
+      } else if ((marker & 0xFF00) !== 0xFF00) break
+      else offset += view.getUint16(offset, false)
+    }
+    return 1
+  }
+
+  // Carga imagen y aplica rotación EXIF manualmente en canvas
+  const fetchImageCorregida = async (url) => {
+    try {
+      const res = await fetch(url)
+      const buffer = await res.arrayBuffer()
+      const orientation = getExifOrientation(buffer)
+      const blob = new Blob([buffer])
+      const blobUrl = URL.createObjectURL(blob)
+
+      return new Promise((resolve) => {
+        const img = new Image()
+        img.onload = () => {
+          const w = img.naturalWidth
+          const h = img.naturalHeight
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+
+          // Orientaciones que rotan 90 o 270 grados
+          if (orientation >= 5 && orientation <= 8) {
+            canvas.width = h
+            canvas.height = w
+          } else {
+            canvas.width = w
+            canvas.height = h
+          }
+
+          switch (orientation) {
+            case 2: ctx.transform(-1, 0, 0, 1, w, 0); break
+            case 3: ctx.transform(-1, 0, 0, -1, w, h); break
+            case 4: ctx.transform(1, 0, 0, -1, 0, h); break
+            case 5: ctx.transform(0, 1, 1, 0, 0, 0); break
+            case 6: ctx.transform(0, 1, -1, 0, h, 0); break
+            case 7: ctx.transform(0, -1, -1, 0, h, w); break
+            case 8: ctx.transform(0, -1, 1, 0, 0, w); break
+            default: break
+          }
+
+          ctx.drawImage(img, 0, 0)
+          URL.revokeObjectURL(blobUrl)
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+          resolve({ base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' })
+        }
+        img.onerror = () => { URL.revokeObjectURL(blobUrl); resolve(null) }
+        img.src = blobUrl
+      })
+    } catch {
+      return null
+    }
   }
 
   const generarDocx = async () => {
