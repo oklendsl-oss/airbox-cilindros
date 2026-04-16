@@ -55,21 +55,24 @@ export default function GenerarInforme({ onCerrar }) {
     )
   }
 
-  const fetchImageAsBase64 = async (url) => {
-    try {
-      const res = await fetch(url)
-      const blob = await res.blob()
-      return new Promise((resolve) => {
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          const base64 = reader.result.split(',')[1]
-          resolve({ base64, mimeType: blob.type || 'image/jpeg' })
-        }
-        reader.readAsDataURL(blob)
-      })
-    } catch {
-      return null
-    }
+  // Carga la imagen, respeta el EXIF de orientación usando canvas
+  const fetchImageCorregida = (url) => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.naturalWidth
+        canvas.height = img.naturalHeight
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+        const base64 = dataUrl.split(',')[1]
+        resolve({ base64, mimeType: 'image/jpeg' })
+      }
+      img.onerror = () => resolve(null)
+      img.src = url
+    })
   }
 
   const generarDocx = async () => {
@@ -199,7 +202,7 @@ export default function GenerarInforme({ onCerrar }) {
             children.push(new Paragraph({ spacing: { before: 200, after: 100 } }))
             for (const foto of puerta.fotos.slice(0, 3)) {
               const { data: { publicUrl } } = supabase.storage.from('puertas-fotos').getPublicUrl(foto.storage_path)
-              const imgData = await fetchImageAsBase64(publicUrl)
+              const imgData = await fetchImageCorregida(publicUrl)
               if (imgData) {
                 children.push(new Paragraph({
                   children: [new ImageRun({
