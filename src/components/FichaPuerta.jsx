@@ -326,7 +326,7 @@ export default function FichaPuerta({ puertaId, onVolver }) {
                     <img
                       src={getFotoUrl(foto.storage_path)}
                       alt={foto.nombre_original || `Foto ${idx + 1}`}
-                      className="w-full h-full object-cover rounded cursor-pointer hover:opacity-90 transition"
+                      className="w-full h-full object-cover rounded cursor-pointer hover:opacity-90 transition" style={{imageOrientation:'from-image'}}
                       onClick={() => setLightboxIndex(idx)}
                       loading="lazy"
                     />

@@ -270,7 +270,7 @@ export default function Buscador({ onSeleccionarPuerta }) {
                     <img
                       src={fotoUrl}
                       alt={`Puerta ${puerta.codigo}`}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" style={{imageOrientation:'from-image'}}
                       loading="lazy"
                     />
                   ) : (
