@@ -270,7 +270,7 @@ export default function Buscador({ onSeleccionarPuerta }) {
                     <img
                       src={fotoUrl}
                       alt={`Puerta ${puerta.codigo}`}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" style={{imageOrientation:'from-image'}}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" style={{transform:'rotate(90deg)', objectFit:'cover'}}
                       loading="lazy"
                     />
                   ) : (
@@ -284,7 +284,7 @@ export default function Buscador({ onSeleccionarPuerta }) {
 
                 {/* Info */}
                 <div className="p-2">
-                  <p className="text-xs font-semibold text-gray-900 truncate">{puerta.codigo}</p>
+
                   {puerta.zona && (
                     <p className="text-xs text-gray-400 truncate mt-0.5">{formatearZona(puerta.zona.nombre)}</p>
                   )}

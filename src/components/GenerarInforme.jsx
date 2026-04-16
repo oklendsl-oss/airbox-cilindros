@@ -201,13 +201,7 @@ export default function GenerarInforme({ onCerrar }) {
 
         // Cada puerta
         for (const puerta of puertas) {
-          children.push(
-            new Paragraph({
-              text: `Puerta: ${puerta.codigo}`,
-              heading: HeadingLevel.HEADING_2,
-              spacing: { before: 300, after: 100 }
-            })
-          )
+
 
           // Tabla info puerta — NIVEL en vez de estado, sin estado
           const filas = [
