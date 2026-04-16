@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Login from './components/Login'
+import GenerarInforme from './components/GenerarInforme'
 import Buscador from './components/Buscador'
 import FichaPuerta from './components/FichaPuerta'
 import toast from 'react-hot-toast'
@@ -10,6 +11,7 @@ export default function App() {
   const [cargandoAuth, setCargandoAuth] = useState(true)
   const [puertaSeleccionada, setPuertaSeleccionada] = useState(null)
   const [contadores, setContadores] = useState({ total: 0, pendientes: 0 })
+  const [mostrarInforme, setMostrarInforme] = useState(false)
 
   useEffect(() => {
     // Obtener sesión inicial
@@ -107,6 +109,13 @@ export default function App() {
               {session.user.email}
             </span>
             <button
+              onClick={() => setMostrarInforme(true)}
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 border border-gray-200 hover:border-blue-200 rounded-lg px-2.5 py-1.5 transition"
+            >
+              <span>📄</span>
+              <span className="hidden sm:block">Informe</span>
+            </button>
+            <button
               onClick={handleLogout}
               className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-200 rounded-lg px-2.5 py-1.5 transition"
             >
@@ -120,6 +129,7 @@ export default function App() {
       </header>
 
       {/* Contenido principal */}
+      {mostrarInforme && <GenerarInforme onCerrar={() => setMostrarInforme(false)} />}
       <main>
         {puertaSeleccionada ? (
           <FichaPuerta
