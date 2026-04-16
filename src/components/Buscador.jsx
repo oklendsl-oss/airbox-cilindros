@@ -2,6 +2,17 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
 
+const formatearZona = (nombre) => {
+  if (!nombre) return ''
+  const match = nombre.match(/^(\d+)[\.\s_-]*(.*)$/)
+  if (match) {
+    const num = match[1].padStart(2, '0')
+    const resto = match[2].trim().replace(/\s+/g, '_')
+    return `${num}_${resto}`
+  }
+  return nombre.replace(/\s+/g, '_')
+}
+
 const ESTADO_COLORES = {
   pendiente: 'bg-gray-100 text-gray-700',
   revisada: 'bg-green-100 text-green-700',
@@ -275,7 +286,7 @@ export default function Buscador({ onSeleccionarPuerta }) {
                 <div className="p-2">
                   <p className="text-xs font-semibold text-gray-900 truncate">{puerta.codigo}</p>
                   {puerta.zona && (
-                    <p className="text-xs text-gray-400 truncate mt-0.5">{puerta.zona.nombre}</p>
+                    <p className="text-xs text-gray-400 truncate mt-0.5">{formatearZona(puerta.zona.nombre)}</p>
                   )}
                   <span className={`inline-block mt-1.5 px-1.5 py-0.5 rounded text-xs font-medium ${ESTADO_COLORES[puerta.estado] || 'bg-gray-100 text-gray-600'}`}>
                     {ESTADO_LABELS[puerta.estado] || puerta.estado}
