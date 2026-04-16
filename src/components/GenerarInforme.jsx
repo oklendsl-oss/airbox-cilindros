@@ -24,9 +24,10 @@ export default function GenerarInforme({ onCerrar }) {
 
   useEffect(() => {
     if (!instalacionId) { setZonas([]); setZonasSeleccionadas([]); return }
-    supabase.from('zonas').select('*').eq('instalacion_id', instalacionId).order('nombre').then(({ data }) => {
-      setZonas(data || [])
-      setZonasSeleccionadas((data || []).map(z => z.id)) // todas por defecto
+    supabase.from('zonas').select('*').eq('instalacion_id', instalacionId).then(({ data }) => {
+      const ordenadas = ordenarZonas(data || [])
+      setZonas(ordenadas)
+      setZonasSeleccionadas(ordenadas.map(z => z.id)) // todas por defecto
     })
   }, [instalacionId])
 
@@ -54,6 +55,24 @@ export default function GenerarInforme({ onCerrar }) {
   }
 
   const estadoTexto = (e) => ({ pendiente: 'Pendiente', revisada: 'Revisada', cambiada: 'Cambiada', incidencia: 'Incidencia' }[e] || e)
+
+  // Formatea nombre de zona: extrae número → zero-pad + guiones bajos
+  const formatearZona = (nombre) => {
+    const match = nombre.match(/^(\d+)[\.\s_-]*(.*)$/)
+    if (match) {
+      const num = match[1].padStart(2, '0')
+      const resto = match[2].trim().replace(/\s+/g, '_')
+      return `${num}_${resto}`
+    }
+    return nombre.replace(/\s+/g, '_')
+  }
+
+  // Ordena zonas numéricamente por el prefijo
+  const ordenarZonas = (lista) => [...lista].sort((a, b) => {
+    const numA = parseInt(a.nombre.match(/^(\d+)/)?.[1] || '0')
+    const numB = parseInt(b.nombre.match(/^(\d+)/)?.[1] || '0')
+    return numA - numB
+  })
 
   const generarDocx = async () => {
     if (!instalacionId || zonasSeleccionadas.length === 0) {
@@ -95,7 +114,7 @@ export default function GenerarInforme({ onCerrar }) {
       // Por cada zona
       for (let i = 0; i < zonasData.length; i++) {
         const zona = zonasData[i]
-        setProgreso(`Procesando zona ${i + 1}/${zonasData.length}: ${zona.nombre}`)
+        setProgreso(`Procesando zona ${i + 1}/${zonasData.length}: ${formatearZona(zona.nombre)}`)
 
         // Cargar puertas de la zona
         const { data: puertas } = await supabase
@@ -107,7 +126,7 @@ export default function GenerarInforme({ onCerrar }) {
         // Título zona
         children.push(
           new Paragraph({
-            text: zona.nombre,
+            text: formatearZona(zona.nombre),
             heading: HeadingLevel.HEADING_1,
             spacing: { before: 400, after: 200 }
           }),
@@ -269,7 +288,7 @@ export default function GenerarInforme({ onCerrar }) {
                     onChange={() => toggleZona(zona.id)}
                     className="rounded text-blue-600"
                   />
-                  <span className="text-sm text-gray-700">{zona.nombre}</span>
+                  <span className="text-sm text-gray-700">{formatearZona(zona.nombre)}</span>
                 </label>
               ))}
             </div>
