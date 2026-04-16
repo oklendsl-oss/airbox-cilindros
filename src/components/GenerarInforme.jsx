@@ -4,11 +4,10 @@ import toast from 'react-hot-toast'
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   ImageRun, Table, TableRow, TableCell, WidthType,
-  BorderStyle, AlignmentType, PageBreak
+  BorderStyle, AlignmentType, PageBreak, VerticalAlign
 } from 'docx'
 import { saveAs } from 'file-saver'
 
-// Fuera del componente para evitar problemas de hoisting
 const formatearZona = (nombre, instalacionNombre = '') => {
   const match = nombre.match(/^(\d+)[\.\s_-]*(.*)$/)
   const inst = instalacionNombre.trim().toUpperCase().replace(/\s+/g, '_')
@@ -26,6 +25,16 @@ const ordenarZonas = (lista) => [...lista].sort((a, b) => {
   const numB = parseInt(b.nombre.match(/^(\d+)/)?.[1] || '0')
   return numA - numB
 })
+
+// Obtiene dimensiones reales de imagen desde base64
+const getImageDimensions = (base64, mimeType) => {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => resolve({ width: img.width, height: img.height })
+    img.onerror = () => resolve({ width: 1, height: 1 })
+    img.src = `data:${mimeType};base64,${base64}`
+  })
+}
 
 export default function GenerarInforme({ onCerrar }) {
   const [instalaciones, setInstalaciones] = useState([])
@@ -46,7 +55,7 @@ export default function GenerarInforme({ onCerrar }) {
     supabase.from('zonas').select('*').eq('instalacion_id', instalacionId).then(({ data }) => {
       const ordenadas = ordenarZonas(data || [])
       setZonas(ordenadas)
-      setZonasSeleccionadas(ordenadas.map(z => z.id)) // todas por defecto
+      setZonasSeleccionadas(ordenadas.map(z => z.id))
     })
   }, [instalacionId])
 
@@ -64,7 +73,7 @@ export default function GenerarInforme({ onCerrar }) {
         const reader = new FileReader()
         reader.onloadend = () => {
           const base64 = reader.result.split(',')[1]
-          resolve({ base64, type: blob.type || 'image/jpeg' })
+          resolve({ base64, mimeType: blob.type || 'image/jpeg' })
         }
         reader.readAsDataURL(blob)
       })
@@ -72,8 +81,6 @@ export default function GenerarInforme({ onCerrar }) {
       return null
     }
   }
-
-  const estadoTexto = (e) => ({ pendiente: 'Pendiente', revisada: 'Revisada', cambiada: 'Cambiada', incidencia: 'Incidencia' }[e] || e)
 
   const generarDocx = async () => {
     if (!instalacionId || zonasSeleccionadas.length === 0) {
@@ -90,22 +97,20 @@ export default function GenerarInforme({ onCerrar }) {
       // Portada
       children.push(
         new Paragraph({
-          children: [new TextRun({ text: 'INFORME DE REVISIÓN DE CILINDROS', bold: true, size: 32, color: '1e40af' })],
+          children: [new TextRun({ text: 'INFORME DE REVISIÓN DE CILINDROS', bold: true, size: 36, color: '1e40af' })],
           alignment: AlignmentType.CENTER,
           spacing: { before: 1200, after: 400 }
         }),
         new Paragraph({
-          children: [new TextRun({ text: `Instalación: ${instalacion.nombre}`, bold: true, size: 24 })],
+          children: [new TextRun({ text: instalacion.nombre.toUpperCase(), bold: true, size: 28 })],
           alignment: AlignmentType.CENTER,
           spacing: { after: 200 }
         }),
         new Paragraph({
-          children: [new TextRun({ text: `Fecha: ${new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}`, size: 20, color: '6b7280' })],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 200 }
-        }),
-        new Paragraph({
-          children: [new TextRun({ text: `Zonas incluidas: ${zonasSeleccionadas.length} de ${zonas.length}`, size: 20, color: '6b7280' })],
+          children: [new TextRun({
+            text: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }),
+            size: 20, color: '6b7280'
+          })],
           alignment: AlignmentType.CENTER,
           spacing: { after: 800 }
         }),
@@ -115,9 +120,10 @@ export default function GenerarInforme({ onCerrar }) {
       // Por cada zona
       for (let i = 0; i < zonasData.length; i++) {
         const zona = zonasData[i]
-        setProgreso(`Procesando zona ${i + 1}/${zonasData.length}: ${formatearZona(zona.nombre, instalacion.nombre)}`)
+        const zonaLabel = formatearZona(zona.nombre, instalacion.nombre)
+        setProgreso(`Procesando ${i + 1}/${zonasData.length}: ${zonaLabel}`)
 
-        // Cargar puertas de la zona
+        // Cargar puertas de la zona (cada puerta = una foto de la zona en este layout)
         const { data: puertas } = await supabase
           .from('puertas')
           .select('*, tipos_cilindro(nombre), fotos(storage_path, nombre_original)')
@@ -127,92 +133,114 @@ export default function GenerarInforme({ onCerrar }) {
         // Título zona
         children.push(
           new Paragraph({
-            text: formatearZona(zona.nombre, instalacion.nombre),
-            heading: HeadingLevel.HEADING_1,
-            spacing: { before: 400, after: 200 }
-          }),
-          new Paragraph({
-            children: [new TextRun({ text: `${puertas?.length || 0} puertas`, color: '6b7280', size: 18 })],
-            spacing: { after: 300 }
+            children: [new TextRun({ text: zonaLabel, bold: true, size: 22, color: '1e3a5f' })],
+            spacing: { before: 300, after: 200 }
           })
         )
 
         if (!puertas || puertas.length === 0) {
-          children.push(new Paragraph({ children: [new TextRun({ text: 'Sin puertas registradas', italics: true, color: '9ca3af' })], spacing: { after: 300 } }))
+          children.push(new Paragraph({
+            children: [new TextRun({ text: 'Sin puertas registradas', italics: true, color: '9ca3af', size: 18 })],
+            spacing: { after: 200 }
+          }))
+          if (i < zonasData.length - 1) children.push(new Paragraph({ children: [new PageBreak()] }))
           continue
         }
 
-        // Cada puerta
+        // Recopilar TODAS las fotos de la zona (una por puerta, la primera)
+        const todasLasFotos = []
         for (const puerta of puertas) {
-          children.push(
-            new Paragraph({
-              text: `Puerta: ${puerta.codigo}`,
-              heading: HeadingLevel.HEADING_2,
-              spacing: { before: 300, after: 100 }
-            })
-          )
-
-          // Tabla info puerta
-          const filas = [
-            ['Estado', estadoTexto(puerta.estado)],
-            ['Tipo de cilindro', puerta.tipos_cilindro?.nombre || 'No definido'],
-          ]
-          if (puerta.observaciones) filas.push(['Observaciones', puerta.observaciones])
-          if (puerta.info_cilindro) {
-            const info = puerta.info_cilindro
-            if (info.marca) filas.push(['Marca', info.marca])
-            if (info.modelo) filas.push(['Modelo', info.modelo])
-            if (info.medidas_ext) filas.push(['Medidas exteriores', info.medidas_ext])
-            if (info.medidas_int) filas.push(['Medidas interiores', info.medidas_int])
-            if (info.num_llaves) filas.push(['Nº llaves', info.num_llaves])
-            if (info.acabado) filas.push(['Acabado', info.acabado])
+          const fotosOrdenadas = puerta.fotos || []
+          if (fotosOrdenadas.length > 0) {
+            const { data: { publicUrl } } = supabase.storage.from('puertas-fotos').getPublicUrl(fotosOrdenadas[0].storage_path)
+            const imgData = await fetchImageAsBase64(publicUrl)
+            if (imgData) {
+              const dims = await getImageDimensions(imgData.base64, imgData.mimeType)
+              todasLasFotos.push({ imgData, dims, puerta })
+            }
           }
+        }
+
+        // Agrupar en filas de 4
+        const FOTOS_POR_FILA = 4
+        const CELDA_ANCHO_PCT = Math.floor(100 / FOTOS_POR_FILA) // 25%
+        const IMG_ANCHO = 1500000 // EMU ~1.65cm
+        const IMG_ALTO = 2000000  // EMU ~2.2cm — más alto para fotos verticales
+
+        for (let f = 0; f < todasLasFotos.length; f += FOTOS_POR_FILA) {
+          const grupo = todasLasFotos.slice(f, f + FOTOS_POR_FILA)
+          // Rellenar hasta 4
+          while (grupo.length < FOTOS_POR_FILA) grupo.push(null)
+
+          const celdas = grupo.map((item) => {
+            if (!item) {
+              return new TableCell({
+                children: [new Paragraph({ children: [] })],
+                width: { size: CELDA_ANCHO_PCT, type: WidthType.PERCENTAGE },
+                borders: {
+                  top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE },
+                  left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }
+                }
+              })
+            }
+
+            const { imgData, dims } = item
+            // Calcular dimensiones manteniendo ratio pero forzando orientación vertical
+            let w = IMG_ANCHO
+            let h = IMG_ALTO
+            const ratio = dims.width / dims.height
+            if (ratio > 1) {
+              // Foto horizontal → rotar visualmente forzando alto > ancho
+              h = IMG_ALTO
+              w = Math.round(IMG_ALTO * (dims.height / dims.width))
+            } else {
+              w = IMG_ANCHO
+              h = Math.round(IMG_ANCHO / ratio)
+              if (h > IMG_ALTO * 1.5) h = IMG_ALTO * 1.5
+            }
+
+            return new TableCell({
+              children: [new Paragraph({
+                children: [new ImageRun({
+                  data: imgData.base64,
+                  transformation: { width: Math.round(w / 9144), height: Math.round(h / 9144) },
+                  type: 'jpg'
+                })],
+                alignment: AlignmentType.CENTER
+              })],
+              width: { size: CELDA_ANCHO_PCT, type: WidthType.PERCENTAGE },
+              verticalAlign: VerticalAlign.CENTER,
+              borders: {
+                top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE },
+                left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }
+              }
+            })
+          })
 
           children.push(new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: filas.map(([campo, valor]) => new TableRow({
-              children: [
-                new TableCell({
-                  children: [new Paragraph({ children: [new TextRun({ text: campo, bold: true, size: 18 })] })],
-                  width: { size: 30, type: WidthType.PERCENTAGE },
-                  shading: { fill: 'f3f4f6' }
-                }),
-                new TableCell({
-                  children: [new Paragraph({ children: [new TextRun({ text: String(valor || ''), size: 18 })] })],
-                  width: { size: 70, type: WidthType.PERCENTAGE }
-                })
-              ]
-            })),
+            rows: [new TableRow({ children: celdas })],
             borders: {
-              top: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
-              bottom: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
-              left: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
-              right: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
-              insideH: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' },
-              insideV: { style: BorderStyle.SINGLE, size: 1, color: 'e5e7eb' }
+              top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE },
+              left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE },
+              insideH: { style: BorderStyle.NONE }, insideV: { style: BorderStyle.NONE }
             }
           }))
 
-          // Fotos
-          if (puerta.fotos && puerta.fotos.length > 0) {
-            children.push(new Paragraph({ spacing: { before: 200, after: 100 } }))
-            for (const foto of puerta.fotos.slice(0, 3)) {
-              const { data: { publicUrl } } = supabase.storage.from('puertas-fotos').getPublicUrl(foto.storage_path)
-              const imgData = await fetchImageAsBase64(publicUrl)
-              if (imgData) {
-                children.push(new Paragraph({
-                  children: [new ImageRun({
-                    data: imgData.base64,
-                    transformation: { width: 300, height: 220 },
-                    type: 'jpg'
-                  })],
-                  spacing: { after: 100 }
-                }))
-              }
-            }
-          }
+          children.push(new Paragraph({ spacing: { after: 80 } }))
+        }
 
-          children.push(new Paragraph({ spacing: { before: 200, after: 100 } }))
+        // Nivel de la zona (si alguna puerta tiene nivel asignado, usar el más frecuente)
+        const niveles = puertas.map(p => p.nivel).filter(Boolean)
+        if (niveles.length > 0) {
+          const nivelMasFrecuente = niveles.sort((a, b) =>
+            niveles.filter(v => v === b).length - niveles.filter(v => v === a).length
+          )[0]
+          children.push(new Paragraph({
+            children: [new TextRun({ text: `Nivel: ${nivelMasFrecuente}`, bold: true, size: 20, color: '374151' })],
+            alignment: AlignmentType.RIGHT,
+            spacing: { before: 100, after: 200 }
+          }))
         }
 
         // Salto de página entre zonas
@@ -224,17 +252,13 @@ export default function GenerarInforme({ onCerrar }) {
       setProgreso('Generando documento...')
       const doc = new Document({
         sections: [{ properties: {}, children }],
-        styles: {
-          default: {
-            document: { run: { font: 'Calibri', size: 20 } }
-          }
-        }
+        styles: { default: { document: { run: { font: 'Calibri', size: 20 } } } }
       })
 
       const blob = await Packer.toBlob(doc)
-      const nombreArchivo = `AIRBOX_${instalacion.nombre.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.docx`
+      const nombreArchivo = `AIRBOX_${instalacion.nombre.replace(/\s+/g, '_').toUpperCase()}_${new Date().toISOString().slice(0, 10)}.docx`
       saveAs(blob, nombreArchivo)
-      toast.success('Informe generado y descargado ✅')
+      toast.success('Informe generado ✅')
       onCerrar()
 
     } catch (err) {
@@ -254,7 +278,6 @@ export default function GenerarInforme({ onCerrar }) {
           <button onClick={onCerrar} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
         </div>
 
-        {/* Selector instalación */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">Instalación</label>
           <select
@@ -269,7 +292,6 @@ export default function GenerarInforme({ onCerrar }) {
           </select>
         </div>
 
-        {/* Selector zonas */}
         {zonas.length > 0 && (
           <div className="mb-5">
             <div className="flex items-center justify-between mb-2">
@@ -289,27 +311,21 @@ export default function GenerarInforme({ onCerrar }) {
                     onChange={() => toggleZona(zona.id)}
                     className="rounded text-blue-600"
                   />
-                  <span className="text-sm text-gray-700">{formatearZona(zona.nombre)}</span>
+                  <span className="text-sm text-gray-700">{formatearZona(zona.nombre, instalaciones.find(i => i.id === instalacionId)?.nombre || '')}</span>
                 </label>
               ))}
             </div>
           </div>
         )}
 
-        {/* Progreso */}
         {generando && (
           <div className="mb-4 bg-blue-50 rounded-lg px-4 py-3 text-sm text-blue-700">
             ⏳ {progreso || 'Generando...'}
           </div>
         )}
 
-        {/* Botones */}
         <div className="flex gap-3">
-          <button
-            onClick={onCerrar}
-            disabled={generando}
-            className="flex-1 border border-gray-200 text-gray-600 rounded-lg py-2.5 text-sm hover:bg-gray-50 transition disabled:opacity-50"
-          >
+          <button onClick={onCerrar} disabled={generando} className="flex-1 border border-gray-200 text-gray-600 rounded-lg py-2.5 text-sm hover:bg-gray-50 transition disabled:opacity-50">
             Cancelar
           </button>
           <button

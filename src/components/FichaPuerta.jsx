@@ -26,6 +26,7 @@ export default function FichaPuerta({ puertaId, onVolver }) {
   const [estado, setEstado] = useState('pendiente')
   const [tipoCilindroId, setTipoCilindroId] = useState('')
   const [observaciones, setObservaciones] = useState('')
+  const [nivel, setNivel] = useState('')
   const [infoCilindro, setInfoCilindro] = useState({
     marca: '', modelo: '', medidas_ext: '', medidas_int: '',
     num_llaves: '', acabado: '', notas: ''
@@ -95,6 +96,7 @@ export default function FichaPuerta({ puertaId, onVolver }) {
       setEstado(data.estado || 'pendiente')
       setTipoCilindroId(data.tipo_cilindro_id || '')
       setObservaciones(data.observaciones || '')
+      setNivel(data.nivel != null ? String(data.nivel) : '')
       setInfoCilindro({
         marca: data.info_cilindro?.marca || '',
         modelo: data.info_cilindro?.modelo || '',
@@ -143,7 +145,7 @@ export default function FichaPuerta({ puertaId, onVolver }) {
   }
 
   // Guardado automático con debounce
-  const guardarCambios = useCallback(async (nuevoEstado, nuevoTipoCilindroId, nuevasObservaciones, nuevaInfo) => {
+  const guardarCambios = useCallback(async (nuevoEstado, nuevoTipoCilindroId, nuevasObservaciones, nuevaInfo, nuevoNivel) => {
     const userId = sessionRef.current?.user?.id
 
     try {
@@ -155,6 +157,7 @@ export default function FichaPuerta({ puertaId, onVolver }) {
           tipo_cilindro_id: nuevoTipoCilindroId || null,
           observaciones: nuevasObservaciones || null,
           info_cilindro: nuevaInfo,
+          nivel: nuevoNivel ? parseInt(nuevoNivel) : null,
           revisado_por: userId || null,
           revisado_en: new Date().toISOString()
         })
@@ -183,32 +186,37 @@ export default function FichaPuerta({ puertaId, onVolver }) {
     }
   }, [puertaId])
 
-  const programarGuardado = useCallback((nuevoEstado, nuevoTipo, nuevasObs, nuevaInfo) => {
+  const programarGuardado = useCallback((nuevoEstado, nuevoTipo, nuevasObs, nuevaInfo, nuevoNivel) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
-      guardarCambios(nuevoEstado, nuevoTipo, nuevasObs, nuevaInfo)
+      guardarCambios(nuevoEstado, nuevoTipo, nuevasObs, nuevaInfo, nuevoNivel)
     }, 800)
   }, [guardarCambios])
 
   const handleEstadoChange = (val) => {
     setEstado(val)
-    programarGuardado(val, tipoCilindroId, observaciones, infoCilindro)
+    programarGuardado(val, tipoCilindroId, observaciones, infoCilindro, nivel)
   }
 
   const handleTipoChange = (val) => {
     setTipoCilindroId(val)
-    programarGuardado(estado, val, observaciones, infoCilindro)
+    programarGuardado(estado, val, observaciones, infoCilindro, nivel)
   }
 
   const handleObservacionesChange = (val) => {
     setObservaciones(val)
-    programarGuardado(estado, tipoCilindroId, val, infoCilindro)
+    programarGuardado(estado, tipoCilindroId, val, infoCilindro, nivel)
+  }
+
+  const handleNivelChange = (val) => {
+    setNivel(val)
+    programarGuardado(estado, tipoCilindroId, observaciones, infoCilindro, val)
   }
 
   const handleInfoChange = (campo, val) => {
     const nueva = { ...infoCilindro, [campo]: val }
     setInfoCilindro(nueva)
-    programarGuardado(estado, tipoCilindroId, observaciones, nueva)
+    programarGuardado(estado, tipoCilindroId, observaciones, nueva, nivel)
   }
 
   const getFotoUrl = (storagePath) => {
@@ -352,6 +360,21 @@ export default function FichaPuerta({ puertaId, onVolver }) {
                   <option value="revisada">Revisada</option>
                   <option value="cambiada">Cambiada</option>
                   <option value="incidencia">Incidencia</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Nivel (1-5)</label>
+                <select
+                  value={nivel}
+                  onChange={(e) => handleNivelChange(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Sin nivel</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
                 </select>
               </div>
               <div>
