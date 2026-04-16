@@ -9,14 +9,16 @@ import {
 import { saveAs } from 'file-saver'
 
 // Fuera del componente para evitar problemas de hoisting
-const formatearZona = (nombre) => {
+const formatearZona = (nombre, instalacionNombre = '') => {
   const match = nombre.match(/^(\d+)[\.\s_-]*(.*)$/)
+  const inst = instalacionNombre.trim().toUpperCase().replace(/\s+/g, '_')
   if (match) {
     const num = match[1].padStart(2, '0')
-    const resto = match[2].trim().replace(/\s+/g, '_')
-    return `${num}_${resto}`
+    const resto = match[2].trim().toUpperCase().replace(/\s+/g, '_')
+    return inst ? `${num}_${inst}_${resto}` : `${num}_${resto}`
   }
-  return nombre.replace(/\s+/g, '_')
+  const base = nombre.trim().toUpperCase().replace(/\s+/g, '_')
+  return inst ? `${inst}_${base}` : base
 }
 
 const ordenarZonas = (lista) => [...lista].sort((a, b) => {
@@ -113,7 +115,7 @@ export default function GenerarInforme({ onCerrar }) {
       // Por cada zona
       for (let i = 0; i < zonasData.length; i++) {
         const zona = zonasData[i]
-        setProgreso(`Procesando zona ${i + 1}/${zonasData.length}: ${formatearZona(zona.nombre)}`)
+        setProgreso(`Procesando zona ${i + 1}/${zonasData.length}: ${formatearZona(zona.nombre, instalacion.nombre)}`)
 
         // Cargar puertas de la zona
         const { data: puertas } = await supabase
@@ -125,7 +127,7 @@ export default function GenerarInforme({ onCerrar }) {
         // Título zona
         children.push(
           new Paragraph({
-            text: formatearZona(zona.nombre),
+            text: formatearZona(zona.nombre, instalacion.nombre),
             heading: HeadingLevel.HEADING_1,
             spacing: { before: 400, after: 200 }
           }),
