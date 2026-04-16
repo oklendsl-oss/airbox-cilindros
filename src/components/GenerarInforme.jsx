@@ -8,6 +8,23 @@ import {
 } from 'docx'
 import { saveAs } from 'file-saver'
 
+// Fuera del componente para evitar problemas de hoisting
+const formatearZona = (nombre) => {
+  const match = nombre.match(/^(\d+)[\.\s_-]*(.*)$/)
+  if (match) {
+    const num = match[1].padStart(2, '0')
+    const resto = match[2].trim().replace(/\s+/g, '_')
+    return `${num}_${resto}`
+  }
+  return nombre.replace(/\s+/g, '_')
+}
+
+const ordenarZonas = (lista) => [...lista].sort((a, b) => {
+  const numA = parseInt(a.nombre.match(/^(\d+)/)?.[1] || '0')
+  const numB = parseInt(b.nombre.match(/^(\d+)/)?.[1] || '0')
+  return numA - numB
+})
+
 export default function GenerarInforme({ onCerrar }) {
   const [instalaciones, setInstalaciones] = useState([])
   const [instalacionId, setInstalacionId] = useState('')
@@ -55,24 +72,6 @@ export default function GenerarInforme({ onCerrar }) {
   }
 
   const estadoTexto = (e) => ({ pendiente: 'Pendiente', revisada: 'Revisada', cambiada: 'Cambiada', incidencia: 'Incidencia' }[e] || e)
-
-  // Formatea nombre de zona: extrae número → zero-pad + guiones bajos
-  const formatearZona = (nombre) => {
-    const match = nombre.match(/^(\d+)[\.\s_-]*(.*)$/)
-    if (match) {
-      const num = match[1].padStart(2, '0')
-      const resto = match[2].trim().replace(/\s+/g, '_')
-      return `${num}_${resto}`
-    }
-    return nombre.replace(/\s+/g, '_')
-  }
-
-  // Ordena zonas numéricamente por el prefijo
-  const ordenarZonas = (lista) => [...lista].sort((a, b) => {
-    const numA = parseInt(a.nombre.match(/^(\d+)/)?.[1] || '0')
-    const numB = parseInt(b.nombre.match(/^(\d+)/)?.[1] || '0')
-    return numA - numB
-  })
 
   const generarDocx = async () => {
     if (!instalacionId || zonasSeleccionadas.length === 0) {
